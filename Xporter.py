@@ -9,6 +9,7 @@ program to:
 """
 
 # import modules
+# import psycopg2  # Get database functions
 import glob
 import os
 import shutil
@@ -17,8 +18,9 @@ import sys
 import X_SAM_metadata
 import filelock
 
+# Globals
+dropboxdir = ''
 
-# import psycopg2 # Get database functions
 
 def print_usage():
     """ print Xporter script usage and exit """
@@ -44,34 +46,31 @@ def parse_dir(dirname):
 
 
 def parse_cmdline_inputs(args):
-    # parse commandline inputs
-    """MHogan: If this needs to be updated, I would recommend using the optparse module instead
+    """parse commandline inputs
+    MHogan: If this needs to be updated, I would recommend using the optparse module instead
     """
     if len(args) != 3 and len(args) != 4:
         print_usage()
 
-    global datadir
-    datadir = parse_dir(sys.argv[1])
-    if datadir == "":
+    datadirectory = parse_dir(sys.argv[1])
+    if datadirectory == "":
         sys.exit(1)
 
-    global dropboxdir
-    dropboxdir = parse_dir(sys.argv[2])
-    if dropboxdir == "":
+    dropboxdirectory = parse_dir(sys.argv[2])
+    if dropboxdirectory == "":
         sys.exit(1)
 
-    global runconfigdb
-    runconfigdb = ""
+    configdb = ""
     if (len(sys.argv) == 4 and sys.argv[3] == "none") or len(sys.argv) == 3:
-        runconfigdb = "none"
+        configdb = "none"
     elif sys.argv[3] == "dev":
-        runconfigdb = "dev"
+        configdb = "dev"
     elif sys.argv[3] == "prod":
-        runconfigdb = "prod"
+        configdb = "prod"
     else:
         print_usage()
 
-    return datadir, dropboxdir, runconfigdb
+    return datadirectory, dropboxdirectory, configdb
 
 
 def connect_to_runconfigdb(dbname):
@@ -79,17 +78,17 @@ def connect_to_runconfigdb(dbname):
     connect to runconfig database. return 0 if ok
     """
     if dbname == "none":
-        print "Not connecting to a RunConfigDB"
+        print("Not connecting to a RunConfigDB")
         return 0
 
     elif dbname == "dev":
-        print "Connecting to development RunConfigDB..."
+        print("Connecting to development RunConfigDB...")
         # dbvariables.conn = psycopg2.connect(database="lariat_dev", user="randy", host="ifdbdev", port="5441")
         # dbvariables.cur= dbvariables.conn.cursor()
         return 0
 
     elif dbname == "prod":
-        print "Connecting to production RunConfigDB..."
+        print("Connecting to production RunConfigDB...")
 
         # ntry = 0
         # nodbconnection = True
@@ -108,7 +107,7 @@ def connect_to_runconfigdb(dbname):
         return 0
 
     else:
-        print "Unknown RunConfigDB name: %s" % dbname
+        print("Unknown RunConfigDB name: %s" % dbname)
         return -1
 
 
@@ -132,16 +131,18 @@ def obtain_lock(lockname, timeout=5, retries=2):
 
 
 def get_finished_files(dirname, file_pattern="*.root"):
+    """Get all files in the directory with a given pattern"""
     return glob.glob(dirname + "/" + file_pattern)
 
 
 def move_files(filenames, destdir, move_file):
-    # move files, and return the number moved
+    """ move files, and return the number moved """
     moved_files = 0
     for filename in filenames:
         fname = filename.split("/")[-1]
         print("Will move/copy %s to %s" % (filename, destdir + fname))
 
+        global dropboxdir
         if len(glob.glob(dropboxdir + fname)) > 0:
             print("File %s already in %s" % (fname, destdir))
             continue
@@ -164,9 +165,10 @@ def write_metadata_files(filenames):
             continue
 
         metadata_json = X_SAM_metadata.SAM_metadata(filename)
-        print metadata_json
 
-        print metadata_fname
+        print('metadata_json: %s' % metadata_json)
+        print('metadata_fname: %s' % metadata_fname)
+
         with open(metadata_fname, "w") as outfile:
             outfile.write(metadata_json)
 
@@ -174,41 +176,47 @@ def write_metadata_files(filenames):
     return n_json_written
 
 
-# Get directory of Xporter.py
-Xporterdir = os.path.dirname(os.path.abspath(__file__))
+def main():
+    # Get directory of Xporter.py
+    Xporterdir = os.path.dirname(os.path.abspath(__file__))
 
-# parse commandline inputs
-datadir, dropboxdir, runconfigdb = parse_cmdline_inputs(sys.argv)
+    global dropboxdir
+    # parse commandline inputs
+    datadir, dropboxdir, runconfigdb = parse_cmdline_inputs(sys.argv)
 
-print("Data dir=%s, Dropbox dir=%s, RunConfigDB=%s" % (datadir, dropboxdir, runconfigdb))
+    print("Data dir=%s, Dropbox dir=%s, RunConfigDB=%s" % (datadir, dropboxdir, runconfigdb))
 
-# connect to runconfigdb
-if connect_to_runconfigdb(runconfigdb) != 0:
-    print("Connecting to RunConfigDB %s failed." % runconfigdb)
-    sys.exit(1)
+    # connect to runconfigdb
+    if connect_to_runconfigdb(runconfigdb) != 0:
+        print("Connecting to RunConfigDB %s failed." % runconfigdb)
+        sys.exit(1)
 
-#  check for file lock
-lock = obtain_lock(datadir + "XporterInProgress")
+    #  check for file lock
+    lock = obtain_lock(datadir + "XporterInProgress")
 
-# get list of finished files
-files = get_finished_files(datadir, "data_dl*_run*.root")
+    # get list of finished files
+    files = get_finished_files(datadir, "data_dl*_run*.root")
 
-print "Found %d files in data dir" % len(files)
-for f in files:
-    print "\t%s" % f.split("/")[-1]
+    print "Found %d files in data dir" % len(files)
+    for f in files:
+        print "\t%s" % f.split("/")[-1]
 
-# for each file, move/copy it to the dropbox
-moveFile = False
-n_moved_files = move_files(files, dropboxdir, move_file=moveFile)
-print "Moved %d / %d files" % (n_moved_files, len(files))
+    # for each file, move/copy it to the dropbox
+    moveFile = False
+    n_moved_files = move_files(files, dropboxdir, move_file=moveFile)
+    print "Moved %d / %d files" % (n_moved_files, len(files))
 
-dropbox_files = get_finished_files(dropboxdir, "data_dl*_run*.root")
-print "Found %d files in dropbox" % len(dropbox_files)
-for f in files:
-    print "\t%s" % f.split("/")[-1]
+    dropbox_files = get_finished_files(dropboxdir, "data_dl*_run*.root")
+    print "Found %d files in dropbox" % len(dropbox_files)
+    for f in files:
+        print "\t%s" % f.split("/")[-1]
 
-n_json_files_written = write_metadata_files(dropbox_files)
-print "Wrote %d / %d metadata files" % (n_json_files_written, len(dropbox_files))
+    n_json_files_written = write_metadata_files(dropbox_files)
+    print "Wrote %d / %d metadata files" % (n_json_files_written, len(dropbox_files))
 
-# exit
-lock.release()
+    # exit
+    lock.release()
+
+
+if __name__ == '__main__':
+    main()
