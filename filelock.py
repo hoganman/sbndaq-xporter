@@ -75,7 +75,6 @@ class Timeout(TimeoutError):
 
     def __init__(self, lock_file):
         self.lock_file = lock_file
-        return None
 
     def __str__(self):
         temp = "The file lock '{}' could not be acquired."\
@@ -127,7 +126,6 @@ class BaseFileLock(object):
         self._lock_counter = 0
 
         atexit.register(self.release)
-        return None
 
     lock_file = property(lambda self: self._lock_file)
 

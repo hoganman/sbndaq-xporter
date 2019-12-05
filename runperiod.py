@@ -1,5 +1,5 @@
 def runperiod(run):
-#    subroutine to determine run period
+    """ subroutine to determine run period """
     if (run < 5220):
         period = "Run0"
     elif(run < 8000):

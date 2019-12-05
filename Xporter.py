@@ -1,11 +1,12 @@
+#!/usr/bin/env python3
 """
 Usage: python Xporter.py <data directory> <dropbox directory>
 
 program to:
-       1)  Check to see if there are new files and if there are:
-       2) update run configuration database
-       3) create the SAM metadata file
-       4) move the data file to the dropbox
+       1) Check to see if there are new files and if there are:
+       2) Update run configuration database
+       3) Create the SAM metadata file
+       4) Move the data file to the dropbox
 """
 
 # import modules
@@ -41,7 +42,7 @@ def parse_dir(dirname):
         return dirname
     except OSError as err:
         print("Directory: ", dirname, "not found")
-        print('Message: \"%s\"' % err.message)
+        print('Message: \"%s\"' % err.strerror)
         return ""
 
 
@@ -120,7 +121,7 @@ def obtain_lock(lockname, timeout=5, retries=2):
             break
         except filelock.Timeout as err:
             print("Could not obtain file lock. Exiting.")
-            print('Message: \"%s\"' % err.message)
+            print('Message: \"%s\"' % err.strerror)
         ntry += 1
 
     if ntry > retries:
@@ -161,7 +162,7 @@ def write_metadata_files(filenames):
     for filename in filenames:
         metadata_fname = filename + ".json"
         if len(glob.glob(metadata_fname)) > 0:
-            print "JSON file for %s already exists." % filename
+            print("JSON file for %s already exists." % filename)
             continue
 
         metadata_json = X_SAM_metadata.SAM_metadata(filename)
@@ -197,22 +198,22 @@ def main():
     # get list of finished files
     files = get_finished_files(datadir, "data_dl*_run*.root")
 
-    print "Found %d files in data dir" % len(files)
+    print("Found %d files in data dir" % len(files))
     for f in files:
-        print "\t%s" % f.split("/")[-1]
+        print("\t%s" % f.split("/")[-1])
 
     # for each file, move/copy it to the dropbox
     moveFile = False
     n_moved_files = move_files(files, dropboxdir, move_file=moveFile)
-    print "Moved %d / %d files" % (n_moved_files, len(files))
+    print("Moved %d / %d files" % (n_moved_files, len(files)))
 
     dropbox_files = get_finished_files(dropboxdir, "data_dl*_run*.root")
-    print "Found %d files in dropbox" % len(dropbox_files)
+    print("Found %d files in dropbox" % len(dropbox_files))
     for f in files:
-        print "\t%s" % f.split("/")[-1]
+        print("\t%s" % f.split("/")[-1])
 
     n_json_files_written = write_metadata_files(dropbox_files)
-    print "Wrote %d / %d metadata files" % (n_json_files_written, len(dropbox_files))
+    print("Wrote %d / %d metadata files" % (n_json_files_written, len(dropbox_files)))
 
     # exit
     lock.release()
